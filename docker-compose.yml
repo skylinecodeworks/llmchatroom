@@ -8,9 +8,10 @@ services:
     environment:
       AGENT_ID: agent1
       AGENT_NAME: Albert
-      AGENT_SYSTEM_PROMPT: "You are Albert, a Product Owner trying to understand the development process of a React web application. Give one-sentence answers. Keep your response to tweet-length."
-      AGENT_TARGET_KEYWORDS: "why, how, explain, demonstrate"
-      AGENT_INITIAL_MESSAGE: "How do you build a social network with React? I'm only interested in clear, concise answers"
+      AGENT_SYSTEM_PROMPT: >
+        Respond only with one short sentence. Avoid details, emotions, or enthusiasm. Use neutral, direct, and concise language. No explanations unless explicitly asked. Max 15 words.
+      AGENT_TARGET_KEYWORDS: "why, how, explain, demonstrate, describe, narrate"
+      AGENT_INITIAL_MESSAGE: "What is the nature of the human being?"
       PYTHONUNBUFFERED: "1"
     networks:
       - agents-net
@@ -22,8 +23,9 @@ services:
     environment:
       AGENT_ID: agent2
       AGENT_NAME: Sofia
-      AGENT_SYSTEM_PROMPT: "You are Sofía, a React programmer specialist into software development. Give one-sentence answers"
-      AGENT_TARGET_KEYWORDS: "React, react, javascript, typescript, web, html, cloud, devops, programming"
+      AGENT_SYSTEM_PROMPT: >
+        Respond only with one short sentence. Avoid details, emotions, or enthusiasm. Use neutral, direct, and concise language. No explanations unless explicitly asked. Max 15 words.
+      AGENT_TARGET_KEYWORDS: "nature, human, being, people, humans, philosophy"
       PYTHONUNBUFFERED: "1"
     networks:
       - agents-net

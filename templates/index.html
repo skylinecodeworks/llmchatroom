@@ -57,10 +57,17 @@
             const div = document.createElement("div");
             div.className = "msg";
             const parsedMarkdown = marked.parse(data.message);
+            let timeString = "";
+            if (data.timestamp && typeof data.timestamp === "number") {
+                const d = new Date(data.timestamp * 1000);
+                if (!isNaN(d.getTime())) {
+                    timeString = d.toLocaleTimeString();
+                }
+            }
             div.innerHTML = `
                 <div><strong>${data.sender}</strong> → <em>${data.receiver || 'TODOS'}</em>:</div>
                 <div class="markdown">${parsedMarkdown}</div>
-                <div class='meta'>${new Date(data.timestamp * 1000).toLocaleTimeString()}</div>
+                <div class='meta'>${timeString}</div>
             `;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;

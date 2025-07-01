@@ -9,7 +9,11 @@ async def generate_reply(system_prompt, user_prompt):
     response = await ollama.AsyncClient(host=OLLAMA_HOST).generate(
         model=OLLAMA_MODEL,
         prompt=user_prompt,
-        options={"system": system_prompt,"max_tokens": 30},
+        options={
+            "temperature": 0.2,
+            "system": system_prompt,
+            "max_tokens": 30
+        },
         stream=False
     )
     return response['response'].strip()
