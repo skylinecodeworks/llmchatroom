@@ -7,6 +7,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+import time
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -132,10 +133,17 @@ with open("templates/index.html", "w") as f:
             const div = document.createElement("div");
             div.className = "msg";
             const parsedMarkdown = marked.parse(data.message);
+            let timeString = "";
+            if (data.timestamp && typeof data.timestamp === "number") {
+                const d = new Date(data.timestamp * 1000);
+                if (!isNaN(d.getTime())) {
+                    timeString = d.toLocaleTimeString();
+                }
+            }
             div.innerHTML = `
                 <div><strong>${data.sender}</strong> → <em>${data.receiver || 'TODOS'}</em>:</div>
                 <div class="markdown">${parsedMarkdown}</div>
-                <div class='meta'>${new Date(data.timestamp * 1000).toLocaleTimeString()}</div>
+                <div class='meta'>${timeString}</div>
             `;
             messagesDiv.appendChild(div);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -175,7 +183,7 @@ async def send_message(payload: dict):
         "sender": payload.get("sender", "user"),
         "receiver": payload.get("receiver", ""),
         "message": payload.get("message", ""),
-        "timestamp": asyncio.get_event_loop().time()
+        "timestamp": time.time()
     }
 
     channel.basic_publish(

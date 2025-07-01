@@ -194,7 +194,11 @@ async def generate_reply(system_prompt, user_prompt):
     response = await ollama.AsyncClient(host=OLLAMA_HOST).generate(
         model=OLLAMA_MODEL,
         prompt=user_prompt,
-        options={"system": system_prompt,"max_tokens": 30},
+        options={
+            "temperature": 0.2,
+            "system": system_prompt,
+            "max_tokens": 30
+        },
         stream=False
     )
     return response['response'].strip()
@@ -211,9 +215,9 @@ services:
     environment:
       AGENT_ID: agent1
       AGENT_NAME: Albert
-      AGENT_SYSTEM_PROMPT: "Eres Albert, un científico. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario."
-      AGENT_TARGET_KEYWORDS: "por qué,cómo,explica,demuestra"
-      AGENT_INITIAL_MESSAGE: "¿Cuál es el sentido de establecer una colonia en Marte? Solo me interesan respuestas claras y concisas con un contexto cientifico. No utilices Markdown en tu respuesta."
+      AGENT_SYSTEM_PROMPT: "You are Albert, a philosopher. Respond briefly, neutrally, and with a focus on the facts. Avoid unnecessary adjectives, emotional expressions, or excessive enthusiasm. Your tone should be sober, clear, and professional."
+      AGENT_TARGET_KEYWORDS: "why, how, explain, demonstrate, describe, narrate"
+      AGENT_INITIAL_MESSAGE: "What is the nature of the human being?"
       PYTHONUNBUFFERED: "1"
     networks:
       - agents-net
@@ -225,24 +229,24 @@ services:
     environment:
       AGENT_ID: agent2
       AGENT_NAME: Sofia
-      AGENT_SYSTEM_PROMPT: "Eres Sofia, una biologa. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario. No utilices Markdown en tu respuesta."
-      AGENT_TARGET_KEYWORDS: "Marte, colonia, vida, biología, biologo, biologa, biologos, biologas, animales, especímenes, Tierra, humanos"
+      AGENT_SYSTEM_PROMPT: "You are Sofía, a philosopher. Respond briefly, neutrally, and with a focus on the facts. Avoid unnecessary adjectives, emotional expressions, or excessive enthusiasm. Your tone should be sober, clear, and professional."
+      AGENT_TARGET_KEYWORDS: "nature, human, being, people, humans, philosophy"
       PYTHONUNBUFFERED: "1"
     networks:
       - agents-net
 
-  agent3:
-    build: .
-    container_name: agent3
-    env_file: .env.template
-    environment:
-      AGENT_ID: agent3
-      AGENT_NAME: Max
-      AGENT_SYSTEM_PROMPT: "Eres Max, un ingeniero. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario. No utilices Markdown en tu respuesta."
-      AGENT_TARGET_KEYWORDS: "colonia, construcciones, nave, combustible, máquinas, edificios, fabricación, ingeniería, ingenieros, ingeniero, ingeniera"
-      PYTHONUNBUFFERED: "1"
-    networks:
-      - agents-net
+  # agent3:
+  #   build: .
+  #   container_name: agent3
+  #   env_file: .env.template
+  #   environment:
+  #     AGENT_ID: agent3
+  #     AGENT_NAME: Max
+  #     AGENT_SYSTEM_PROMPT: "Eres Max, programador . Da respuestas de una sola frase. Adapta tu respuesta al tamaño de un tweet."
+  #     AGENT_TARGET_KEYWORDS: "colonia, construcciones, nave, combustible, máquinas, edificios, fabricación, ingeniería, ingenieros, ingeniero, ingeniera"
+  #     PYTHONUNBUFFERED: "1"
+  #   networks:
+  #     - agents-net
 
 networks:
   agents-net:
@@ -257,10 +261,10 @@ import pika
 import threading
 import asyncio
 import uvicorn
-from fastapi import FastAPI, WebSocket, Request, Form
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+import time
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -338,19 +342,19 @@ with open("templates/index.html", "w") as f:
         #messages { padding: 10px; height: 80vh; overflow-y: scroll; border-bottom: 1px solid #555; }
         .msg { margin: 5px 0; }
         .meta { color: #999; font-size: 12px; }
-        form { display: flex; padding: 10px; background: #2a2a2a; }
-        input, select { margin-right: 10px; padding: 5px; }
-        input[type=text] { flex: 1; }
-    </style>
-</head>
-<body>
-    <header>💬 LLM Chatroom Monitor</header>
-    <div id="messages"></div>
-    <form id="msgForm">
-        <select id="sender">
-            <option value="user">Tú (usuario)</option>
-            <option value="agent1">Agente 1</option>
-            <option value="agent2">Agente 2</option>
+        .markdown {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 4px;
+        }
+        .markdown h1, .markdown h2 { color: #4fc3f7; }
+        .markdown p, .markdown ul, .markdown ol { color: #ccc; }
+        .markdown code {
+            background-color: #333;
+            color: #e0e0e0;
+            padding: 2px 4px;
+            border-radius: 3px;
 
 
 
