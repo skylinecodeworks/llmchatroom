@@ -1,0 +1,46 @@
+version: '3.9'
+
+services:
+  agent1:
+    build: .
+    container_name: agent1
+    env_file: .env.template
+    environment:
+      AGENT_ID: agent1
+      AGENT_NAME: Albert
+      AGENT_SYSTEM_PROMPT: "You are Albert, a Product Owner trying to understand the development process of a React web application. Give one-sentence answers. Keep your response to tweet-length."
+      AGENT_TARGET_KEYWORDS: "why, how, explain, demonstrate"
+      AGENT_INITIAL_MESSAGE: "How do you build a social network with React? I'm only interested in clear, concise answers"
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - agents-net
+
+  agent2:
+    build: .
+    container_name: agent2
+    env_file: .env.template
+    environment:
+      AGENT_ID: agent2
+      AGENT_NAME: Sofia
+      AGENT_SYSTEM_PROMPT: "You are Sofía, a React programmer specialist into software development. Give one-sentence answers"
+      AGENT_TARGET_KEYWORDS: "React, react, javascript, typescript, web, html, cloud, devops, programming"
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - agents-net
+
+  # agent3:
+  #   build: .
+  #   container_name: agent3
+  #   env_file: .env.template
+  #   environment:
+  #     AGENT_ID: agent3
+  #     AGENT_NAME: Max
+  #     AGENT_SYSTEM_PROMPT: "Eres Max, programador . Da respuestas de una sola frase. Adapta tu respuesta al tamaño de un tweet."
+  #     AGENT_TARGET_KEYWORDS: "colonia, construcciones, nave, combustible, máquinas, edificios, fabricación, ingeniería, ingenieros, ingeniero, ingeniera"
+  #     PYTHONUNBUFFERED: "1"
+  #   networks:
+  #     - agents-net
+
+networks:
+  agents-net:
+    external: true

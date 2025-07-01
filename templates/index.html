@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatroom</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #eee; margin: 0; padding: 0; }
+        header { background: #333; padding: 10px; text-align: center; font-size: 24px; color: #0f0; }
+        #messages { padding: 10px; height: 80vh; overflow-y: scroll; border-bottom: 1px solid #555; }
+        .msg { margin: 5px 0; }
+        .meta { color: #999; font-size: 12px; }
+        .markdown {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 4px;
+        }
+        .markdown h1, .markdown h2 { color: #4fc3f7; }
+        .markdown p, .markdown ul, .markdown ol { color: #ccc; }
+        .markdown code {
+            background-color: #333;
+            color: #e0e0e0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .markdown pre {
+            background-color: #222;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        form { display: flex; padding: 10px; background: #2a2a2a; }
+        input, select { margin-right: 10px; padding: 5px; }
+        input[type=text] { flex: 1; }
+    </style>
+</head>
+<body>
+    <header>💬 LLM Chatroom Monitor</header>
+    <div id="messages"></div>
+    <form id="msgForm">
+        <select id="sender">
+            <option value="user">Tú (usuario)</option>
+            <option value="agent1">Agente 1</option>
+            <option value="agent2">Agente 2</option>
+            <option value="agent3">Agente 3</option>
+        </select>
+        <input type="text" id="message" placeholder="Escribe un mensaje..." required />
+        <button type="submit">Enviar</button>
+    </form>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        const ws = new WebSocket("ws://" + location.host + "/ws");
+        const messagesDiv = document.getElementById("messages");
+        ws.onmessage = event => {
+            const data = JSON.parse(event.data);
+            const div = document.createElement("div");
+            div.className = "msg";
+            const parsedMarkdown = marked.parse(data.message);
+            div.innerHTML = `
+                <div><strong>${data.sender}</strong> → <em>${data.receiver || 'TODOS'}</em>:</div>
+                <div class="markdown">${parsedMarkdown}</div>
+                <div class='meta'>${new Date(data.timestamp * 1000).toLocaleTimeString()}</div>
+            `;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        };
+
+        const form = document.getElementById("msgForm");
+        form.onsubmit = async e => {
+            e.preventDefault();
+            const sender = document.getElementById("sender").value;
+            const message = document.getElementById("message").value;
+            const body = JSON.stringify({ sender, receiver: "", message });
+            await fetch("/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: body
+            });
+            document.getElementById("message").value = "";
+        };
+    </script>
+</body>
+</html>

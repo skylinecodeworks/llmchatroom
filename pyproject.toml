@@ -1,0 +1,16 @@
+[project]
+name = "llmchatroom"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pika",
+    "python-dotenv",
+    "ollama",
+    "fastapi",
+    "jinja2",
+    "uvicorn",
+    "aiofiles",
+    "python-multipart"
+]

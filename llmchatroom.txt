@@ -1,0 +1,460 @@
+📁 ESTRUCTURA DEL PROYECTO
+.
+├── agent.py
+├── docker-compose.yml
+├── Dockerfile
+├── llmchatroom.txt
+├── main.py
+├── messaging.py
+├── ollama_client.py
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+├── uv.lock
+└── webclient.py
+
+1 directory, 12 files
+
+
+🧠 CONTENIDO RELEVANTE
+
+### ./main.py ###
+from agent import start_agent
+
+if __name__ == "__main__":
+    print(f"[🚀 STARTING AGENT")
+    start_agent()
+
+
+### ./pyproject.toml ###
+[project]
+name = "llmchatroom"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pika",
+    "python-dotenv",
+    "ollama",
+    "fastapi",
+    "jinja2",
+    "uvicorn",
+    "aiofiles",
+    "python-multipart"
+]
+
+
+### ./README.md ###
+
+
+
+### ./requirements.txt ###
+ollama~=0.5.1
+python-dotenv~=1.1.1
+pika~=1.3.2
+uvicorn~=0.35.0
+fastapi~=0.115.14
+
+
+### ./agent.py ###
+import os
+import asyncio
+from dotenv import load_dotenv
+from ollama_client import generate_reply
+from messaging import send_message, subscribe_messages
+
+load_dotenv()
+
+AGENT_ID = os.getenv("AGENT_ID")
+AGENT_NAME = os.getenv("AGENT_NAME")
+SYSTEM_PROMPT = os.getenv("AGENT_SYSTEM_PROMPT")
+KEYWORDS = [k.strip().lower() for k in os.getenv("AGENT_TARGET_KEYWORDS", "").split(",") if k]
+
+def should_respond(message, receiver, text):
+    if receiver == AGENT_ID:
+        return True
+    if receiver and receiver != AGENT_ID:
+        return False
+    return any(k in text.lower() for k in KEYWORDS)
+
+async def handle_incoming_message(payload):
+    sender = payload.get("sender")
+    receiver = payload.get("receiver")
+    text = payload.get("message", "")
+    conversation_id = payload.get("conversation_id")
+    message_id = payload.get("message_id")
+    print(f"[ {sender} ] {text} -> {conversation_id} -> {message_id}:]")
+
+    if sender == AGENT_ID:
+        return
+
+    if should_respond(payload, receiver, text):
+        print(f"[\U0001F4AC {AGENT_NAME}] Respondiendo a: {text}")
+        response = await generate_reply(SYSTEM_PROMPT, text)
+        await send_message(
+            sender=AGENT_ID,
+            message=response,
+            receiver=sender,
+            conversation_id=conversation_id,
+            in_response_to=message_id
+        )
+    else:
+        print(f"[\U0001F9D0 {AGENT_NAME}] Ignorando mensaje: {text}")
+
+
+def start_agent():
+    print(f"\n🤖 Agente '{AGENT_NAME}' ({AGENT_ID}) iniciado.\n")
+
+    initial_message = os.getenv("AGENT_INITIAL_MESSAGE", "").strip()
+    if initial_message:
+        asyncio.run(send_message(
+            sender=AGENT_ID,
+            message=initial_message,
+            receiver=""
+        ))
+        print(f"[🚀 {AGENT_NAME}] Inició la conversación con: {initial_message}")
+
+    subscribe_messages(callback=handle_incoming_message)
+
+
+
+### ./messaging.py ###
+import os
+import json
+import pika
+import asyncio
+import uuid
+from datetime import datetime
+
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST")
+RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT"))
+RABBITMQ_USER = os.getenv("RABBITMQ_USER")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD")
+EXCHANGE_NAME = os.getenv("EXCHANGE_NAME")
+AGENT_ID = os.getenv("AGENT_ID")
+
+_credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+_params = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=_credentials)
+
+def _create_connection():
+    return pika.BlockingConnection(_params)
+
+async def send_message(sender, message, receiver="", conversation_id=None, in_response_to=None):
+    payload = {
+        "message_id": str(uuid.uuid4()),
+        "conversation_id": conversation_id or str(uuid.uuid4()),
+        "sender": sender,
+        "receiver": receiver,
+        "message": message,
+        "in_response_to": in_response_to,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    connection = _create_connection()
+    channel = connection.channel()
+    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='fanout', durable=True)
+    channel.basic_publish(
+        exchange=EXCHANGE_NAME,
+        routing_key='',
+        body=json.dumps(payload)
+    )
+    connection.close()
+    print(f"[📤 {sender}] Mensaje enviado: {payload}")
+
+def subscribe_messages(callback):
+    connection = _create_connection()
+    channel = connection.channel()
+    channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='fanout', durable=True)
+
+    result = channel.queue_declare(queue='', exclusive=True)
+    queue_name = result.method.queue
+    channel.queue_bind(exchange=EXCHANGE_NAME, queue=queue_name)
+
+    def _on_message(ch, method, props, body):
+        try:
+            payload = json.loads(body)
+            asyncio.run(callback(payload))
+        except Exception as e:
+            print("[⚠️ Error procesando mensaje]", e)
+
+    channel.basic_consume(queue=queue_name, on_message_callback=_on_message, auto_ack=True)
+    channel.start_consuming()
+
+
+
+### ./ollama_client.py ###
+import os
+import ollama
+
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST")
+
+async def generate_reply(system_prompt, user_prompt):
+    print(f"Configuration: {OLLAMA_MODEL} {OLLAMA_HOST}")
+    response = await ollama.AsyncClient(host=OLLAMA_HOST).generate(
+        model=OLLAMA_MODEL,
+        prompt=user_prompt,
+        options={"system": system_prompt,"max_tokens": 30},
+        stream=False
+    )
+    return response['response'].strip()
+
+
+### ./docker-compose.yml ###
+version: '3.9'
+
+services:
+  agent1:
+    build: .
+    container_name: agent1
+    env_file: .env.template
+    environment:
+      AGENT_ID: agent1
+      AGENT_NAME: Albert
+      AGENT_SYSTEM_PROMPT: "Eres Albert, un científico. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario."
+      AGENT_TARGET_KEYWORDS: "por qué,cómo,explica,demuestra"
+      AGENT_INITIAL_MESSAGE: "¿Cuál es el sentido de establecer una colonia en Marte? Solo me interesan respuestas claras y concisas con un contexto cientifico. No utilices Markdown en tu respuesta."
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - agents-net
+
+  agent2:
+    build: .
+    container_name: agent2
+    env_file: .env.template
+    environment:
+      AGENT_ID: agent2
+      AGENT_NAME: Sofia
+      AGENT_SYSTEM_PROMPT: "Eres Sofia, una biologa. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario. No utilices Markdown en tu respuesta."
+      AGENT_TARGET_KEYWORDS: "Marte, colonia, vida, biología, biologo, biologa, biologos, biologas, animales, especímenes, Tierra, humanos"
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - agents-net
+
+  agent3:
+    build: .
+    container_name: agent3
+    env_file: .env.template
+    environment:
+      AGENT_ID: agent3
+      AGENT_NAME: Max
+      AGENT_SYSTEM_PROMPT: "Eres Max, un ingeniero. Da respuestas de una sola frase. Usa menos de 20 palabras. No expliques más de lo necesario. No utilices Markdown en tu respuesta."
+      AGENT_TARGET_KEYWORDS: "colonia, construcciones, nave, combustible, máquinas, edificios, fabricación, ingeniería, ingenieros, ingeniero, ingeniera"
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - agents-net
+
+networks:
+  agents-net:
+    external: true
+
+
+
+### ./webclient.py ###
+import os
+import json
+import pika
+import threading
+import asyncio
+import uvicorn
+from fastapi import FastAPI, WebSocket, Request, Form
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+clients = []
+event_loop = None
+
+@app.on_event("startup")
+async def startup_event():
+    global event_loop
+    event_loop = asyncio.get_running_loop()
+    print("🌀 Event loop capturado en startup.")
+
+@app.get("/", response_class=HTMLResponse)
+async def get(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    clients.append(websocket)
+    print("🟢 WebSocket conectado")
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        clients.remove(websocket)
+        print("🔴 WebSocket desconectado")
+
+def broadcast_message(msg):
+    for ws in clients:
+        try:
+            asyncio.run_coroutine_threadsafe(ws.send_text(msg), event_loop)
+        except Exception as e:
+            print(f"[⚠️ Error enviando mensaje]: {e}")
+
+def start_rabbit_listener():
+    host = os.getenv("RABBITMQ_HOST", "localhost")
+    port = int(os.getenv("RABBITMQ_PORT", 5672))
+    user = os.getenv("RABBITMQ_USER", "user")
+    password = os.getenv("RABBITMQ_PASSWORD", "password")
+    exchange = os.getenv("EXCHANGE_NAME", "llmchatroom")
+
+    creds = pika.PlainCredentials(user, password)
+    conn = pika.BlockingConnection(pika.ConnectionParameters(host=host, port=port, credentials=creds))
+    channel = conn.channel()
+
+    channel.exchange_declare(exchange=exchange, exchange_type="fanout", durable=True)
+    result = channel.queue_declare(queue='', exclusive=True)
+    queue_name = result.method.queue
+    channel.queue_bind(exchange=exchange, queue=queue_name)
+
+    def callback(ch, method, properties, body):
+        try:
+            msg = body.decode()
+            print(f"[📨 Recibido] {msg}")
+            broadcast_message(msg)
+        except Exception as e:
+            print(f"[⚠️ Error procesando mensaje]: {e}")
+
+    channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+    print("🔁 Escuchando mensajes desde RabbitMQ...")
+    channel.start_consuming()
+
+# HTML UI con mejora de experiencia
+os.makedirs("templates", exist_ok=True)
+with open("templates/index.html", "w") as f:
+    f.write("""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatroom</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #eee; margin: 0; padding: 0; }
+        header { background: #333; padding: 10px; text-align: center; font-size: 24px; color: #0f0; }
+        #messages { padding: 10px; height: 80vh; overflow-y: scroll; border-bottom: 1px solid #555; }
+        .msg { margin: 5px 0; }
+        .meta { color: #999; font-size: 12px; }
+        form { display: flex; padding: 10px; background: #2a2a2a; }
+        input, select { margin-right: 10px; padding: 5px; }
+        input[type=text] { flex: 1; }
+    </style>
+</head>
+<body>
+    <header>💬 LLM Chatroom Monitor</header>
+    <div id="messages"></div>
+    <form id="msgForm">
+        <select id="sender">
+            <option value="user">Tú (usuario)</option>
+            <option value="agent1">Agente 1</option>
+            <option value="agent2">Agente 2</option>
+
+
+
+### ./llmchatroom.txt ###
+📁 ESTRUCTURA DEL PROYECTO
+.
+├── agent.py
+├── docker-compose.yml
+├── Dockerfile
+├── llmchatroom.txt
+├── main.py
+├── messaging.py
+├── ollama_client.py
+├── pyproject.toml
+├── README.md
+├── requirements.txt
+├── uv.lock
+└── webclient.py
+
+1 directory, 12 files
+
+
+🧠 CONTENIDO RELEVANTE
+
+### ./main.py ###
+from agent import start_agent
+
+if __name__ == "__main__":
+    print(f"[🚀 STARTING AGENT")
+    start_agent()
+
+
+### ./pyproject.toml ###
+[project]
+name = "llmchatroom"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pika",
+    "python-dotenv",
+    "ollama",
+    "fastapi",
+    "jinja2",
+    "uvicorn",
+    "aiofiles",
+    "python-multipart"
+]
+
+
+### ./README.md ###
+
+
+
+### ./requirements.txt ###
+ollama~=0.5.1
+python-dotenv~=1.1.1
+pika~=1.3.2
+uvicorn~=0.35.0
+fastapi~=0.115.14
+
+
+### ./agent.py ###
+import os
+import asyncio
+from dotenv import load_dotenv
+from ollama_client import generate_reply
+from messaging import send_message, subscribe_messages
+
+load_dotenv()
+
+AGENT_ID = os.getenv("AGENT_ID")
+AGENT_NAME = os.getenv("AGENT_NAME")
+SYSTEM_PROMPT = os.getenv("AGENT_SYSTEM_PROMPT")
+KEYWORDS = [k.strip().lower() for k in os.getenv("AGENT_TARGET_KEYWORDS", "").split(",") if k]
+
+def should_respond(message, receiver, text):
+    if receiver == AGENT_ID:
+        return True
+    if receiver and receiver != AGENT_ID:
+        return False
+    return any(k in text.lower() for k in KEYWORDS)
+
+async def handle_incoming_message(payload):
+    sender = payload.get("sender")
+    receiver = payload.get("receiver")
+    text = payload.get("message", "")
+    conversation_id = payload.get("conversation_id")
+    message_id = payload.get("message_id")
+    print(f"[ {sender} ] {text} -> {conversation_id} -> {message_id}:]")
+
+    if sender == AGENT_ID:
+        return
+
+    if should_respond(payload, receiver, text):
+        print(f"[\U0001F4AC {AGENT_NAME}] Respondiendo a: {text}")
+        response = await generate_reply(SYSTEM_PROMPT, text)
+        await send_message(
+            sender=AGENT_ID,
+            message=response,
+            receiver=sender,
+            conversation_id=conversation_id,
+            in_response_to=message_id
+
+
+
